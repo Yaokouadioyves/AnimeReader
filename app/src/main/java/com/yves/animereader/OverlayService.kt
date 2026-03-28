@@ -35,6 +35,7 @@ class OverlayService : Service() {
     private var mediaProjection: MediaProjection? = null
     private var virtualDisplay: VirtualDisplay? = null
     private var imageReader: ImageReader? = null
+    private var mediaProjectionCallback: MediaProjectionManager.Callback? = null
     
     private val textRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
     
@@ -67,31 +68,43 @@ class OverlayService : Service() {
         
         if (resultCode != 0 && data != null && mediaProjection == null) {
             
-            // FIX ULTRA CRITIQUE ANDROID 14 : 
-            // 1. Il faut ABSOLUMENT appeler startForeground en PREMIER
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                startForeground(1, createNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
-            } else {
-                startForeground(1, createNotification())
-            }
-
-            // 2. Et ENSUITE seulement on a le droit de réclamer la MediaProjection
+            // ANDROID 14 FIX: Nous devons absolument suivre cette séquence :
+            // 1. Obtenir le MediaProjection token
+            // 2. Enregistrer un callback obligatoire (nouveauté Android 14)
+            // 3. Ensuite seulement démarrer le service en premier plan
+            // 4. Enfin créer le VirtualDisplay
+            
             try {
                 val projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
                 mediaProjection = projectionManager.getMediaProjection(resultCode, data)
+                
+                // NOUVEAUTÉ ANDROID 14 : Enregistrement obligatoire du callback
+                mediaProjectionCallback = object : MediaProjectionManager.Callback() {
+                    override fun onStop() {
+                        Log.i("OverlayService", "MediaProjection callback: Arrêt détecté")
+                        stopSelf()
+                    }
+                }
+                projectionManager.registerCallback(mediaProjectionCallback, Handler(Looper.getMainLooper()))
+                
+                // Maintenant qu'on a enregistré le callback, on peut démarrer le foreground service
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    startForeground(1, createNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
+                } else {
+                    startForeground(1, createNotification())
+                }
                 
                 setupScreenCapture()
                 startScreenCaptureLoop()
                 
                 Toast.makeText(this, "AnimeReader est prêt !", Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
-                Log.e("AnimeReader", "Erreur fatale MediaProjection: ${e.message}")
-                Toast.makeText(this, "Erreur Android 14 : ${e.message}", Toast.LENGTH_LONG).show()
+                Log.e("AnimeReader", "Erreur fatale lors de l'initialisation: ${e.message}")
+                Toast.makeText(this, "Erreur d'initialisation : ${e.message}", Toast.LENGTH_LONG).show()
                 stopSelf()
             }
             
         } else if (mediaProjection == null) {
-            // Sécurité anti-crash si le service est démarré sans les bonnes données
             startForeground(1, createNotification())
             stopSelf()
         }
@@ -204,6 +217,13 @@ class OverlayService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         captureHandler.removeCallbacksAndMessages(null)
+        
+        // ANDROID 14 : Désenregistrer le callback si enregistré
+        if (mediaProjectionCallback != null) {
+            val projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+            projectionManager.unregisterCallback(mediaProjectionCallback)
+        }
+        
         virtualDisplay?.release()
         imageReader?.close()
         mediaProjection?.stop()
