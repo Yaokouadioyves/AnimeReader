@@ -1,8 +1,10 @@
 package com.yves.animereader
 
+import android.Manifest
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.media.projection.MediaProjectionManager
 import android.net.Uri
 import android.os.Build
@@ -17,28 +19,35 @@ import androidx.compose.material3.Text
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 
 class MainActivity : ComponentActivity() {
 
-    // Gestionnaire de réponse pour l'autorisation de capture d'écran
+    // Capture d'écran (MediaProjection)
     private val screenCaptureLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             val data = result.data
             if (data != null) {
-                // On passe l'autorisation au service d'arrière-plan
                 val intent = Intent(this, OverlayService::class.java).apply {
                     putExtra("RESULT_CODE", result.resultCode)
                     putExtra("DATA", data)
                 }
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    startForegroundService(intent) // Obligatoire pour MediaProjection
+                    startForegroundService(intent)
                 } else {
                     startService(intent)
                 }
             }
         }
+    }
+
+    // Demande de permission pour les notifications (Android 13+)
+    private val requestNotificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        checkOverlayAndStart()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -57,12 +66,24 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun checkPermissionsAndStart() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                requestNotificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                return
+            }
+        }
+        checkOverlayAndStart()
+    }
+
+    private fun checkOverlayAndStart() {
         if (!Settings.canDrawOverlays(this)) {
-            // 1. Demande d'afficher par-dessus les apps
             val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
             startActivity(intent)
         } else {
-            // 2. Si on a l'overlay, on demande l'autorisation d'enregistrer l'écran
             startScreenCapture()
         }
     }

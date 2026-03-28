@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
 import android.graphics.PixelFormat
 import android.hardware.display.DisplayManager
@@ -31,15 +32,12 @@ class OverlayService : Service() {
     private var overlayManager: OverlayViewManager? = null
     private lateinit var ttsManager: TtsManager
     
-    // Composants pour la capture d'écran
     private var mediaProjection: MediaProjection? = null
     private var virtualDisplay: VirtualDisplay? = null
     private var imageReader: ImageReader? = null
     
-    // OCR Google ML Kit
     private val textRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
     
-    // Pour ne pas lire deux fois le même texte (Le système "Anti-Spam")
     private var lastReadText = ""
     private val captureHandler = Handler(Looper.getMainLooper())
     private var isProcessingImage = false
@@ -50,9 +48,14 @@ class OverlayService : Service() {
         super.onCreate()
         
         createNotificationChannel()
-        startForeground(1, createNotification())
         
-        // Initialiser notre TtsManager (La Voix Orus)
+        // FIX CRITIQUE POUR ANDROID 14 : Il faut spécifier le type MediaProjection dans startForeground
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(1, createNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
+        } else {
+            startForeground(1, createNotification())
+        }
+        
         ttsManager = TtsManager(this)
         
         overlayManager = OverlayViewManager(this)
@@ -67,11 +70,10 @@ class OverlayService : Service() {
             val projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
             mediaProjection = projectionManager.getMediaProjection(resultCode, data)
             
-            // Démarrer la boucle de capture d'écran
             setupScreenCapture()
             startScreenCaptureLoop()
             
-            Toast.makeText(this, "AnimeReader : L'Oeil est ouvert, pret a lire !", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "AnimeReader est prêt !", Toast.LENGTH_SHORT).show()
         }
         
         return START_NOT_STICKY
@@ -97,7 +99,6 @@ class OverlayService : Service() {
     }
 
     private fun startScreenCaptureLoop() {
-        // On vérifie l'écran toutes les 1 seconde
         val captureRunnable = object : Runnable {
             override fun run() {
                 processLatestScreenFrame()
@@ -160,7 +161,6 @@ class OverlayService : Service() {
                         lastReadText = cleanedText
                         Log.i("AnimeReader", "NOUVEAU TEXTE DETECTE : $cleanedText")
                         
-                        // LECTURE AUDIO INSTANTANEE !
                         ttsManager.speak(cleanedText)
                     }
                 }
@@ -189,7 +189,7 @@ class OverlayService : Service() {
         mediaProjection?.stop()
         overlayManager?.removeAllViews()
         ttsManager.stop()
-        Toast.makeText(this, "AnimeReader est arrete", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "AnimeReader est arrêté", Toast.LENGTH_SHORT).show()
     }
 
     private fun createNotificationChannel() {
