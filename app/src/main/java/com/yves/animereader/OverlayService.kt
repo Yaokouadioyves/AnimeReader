@@ -49,12 +49,8 @@ class OverlayService : Service() {
         
         createNotificationChannel()
         
-        // FIX CRITIQUE POUR ANDROID 14 : Il faut spécifier le type MediaProjection dans startForeground
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(1, createNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
-        } else {
-            startForeground(1, createNotification())
-        }
+        // ATTENTION ANDROID 14 : Ne SURTOUT PAS appeler startForeground() ici pour MediaProjection.
+        // Cela doit être fait APRES avoir obtenu le MediaProjection token dans onStartCommand.
         
         ttsManager = TtsManager(this)
         
@@ -64,11 +60,26 @@ class OverlayService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val resultCode = intent?.getIntExtra("RESULT_CODE", 0) ?: 0
-        val data = intent?.getParcelableExtra<Intent>("DATA")
+        
+        // Gérer la dépréciation de getParcelableExtra sur Android 13+
+        val data: Intent? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent?.getParcelableExtra("DATA", Intent::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            intent?.getParcelableExtra("DATA")
+        }
         
         if (resultCode != 0 && data != null && mediaProjection == null) {
             val projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
             mediaProjection = projectionManager.getMediaProjection(resultCode, data)
+            
+            // FIX CRITIQUE ANDROID 14 : startForeground DOIT être appelé ICI,
+            // *APRÈS* avoir récupéré mediaProjection, sinon le système plante (SecurityException).
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(1, createNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
+            } else {
+                startForeground(1, createNotification())
+            }
             
             setupScreenCapture()
             startScreenCaptureLoop()
