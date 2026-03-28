@@ -49,9 +49,6 @@ class OverlayService : Service() {
         
         createNotificationChannel()
         
-        // ATTENTION ANDROID 14 : Ne SURTOUT PAS appeler startForeground() ici pour MediaProjection.
-        // Cela doit être fait APRES avoir obtenu le MediaProjection token dans onStartCommand.
-        
         ttsManager = TtsManager(this)
         
         overlayManager = OverlayViewManager(this)
@@ -61,7 +58,6 @@ class OverlayService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val resultCode = intent?.getIntExtra("RESULT_CODE", 0) ?: 0
         
-        // Gérer la dépréciation de getParcelableExtra sur Android 13+
         val data: Intent? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             intent?.getParcelableExtra("DATA", Intent::class.java)
         } else {
@@ -70,21 +66,34 @@ class OverlayService : Service() {
         }
         
         if (resultCode != 0 && data != null && mediaProjection == null) {
-            val projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-            mediaProjection = projectionManager.getMediaProjection(resultCode, data)
             
-            // FIX CRITIQUE ANDROID 14 : startForeground DOIT être appelé ICI,
-            // *APRÈS* avoir récupéré mediaProjection, sinon le système plante (SecurityException).
+            // FIX ULTRA CRITIQUE ANDROID 14 : 
+            // 1. Il faut ABSOLUMENT appeler startForeground en PREMIER
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 startForeground(1, createNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
             } else {
                 startForeground(1, createNotification())
             }
+
+            // 2. Et ENSUITE seulement on a le droit de réclamer la MediaProjection
+            try {
+                val projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+                mediaProjection = projectionManager.getMediaProjection(resultCode, data)
+                
+                setupScreenCapture()
+                startScreenCaptureLoop()
+                
+                Toast.makeText(this, "AnimeReader est prêt !", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Log.e("AnimeReader", "Erreur fatale MediaProjection: ${e.message}")
+                Toast.makeText(this, "Erreur Android 14 : ${e.message}", Toast.LENGTH_LONG).show()
+                stopSelf()
+            }
             
-            setupScreenCapture()
-            startScreenCaptureLoop()
-            
-            Toast.makeText(this, "AnimeReader est prêt !", Toast.LENGTH_SHORT).show()
+        } else if (mediaProjection == null) {
+            // Sécurité anti-crash si le service est démarré sans les bonnes données
+            startForeground(1, createNotification())
+            stopSelf()
         }
         
         return START_NOT_STICKY
