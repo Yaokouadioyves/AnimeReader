@@ -71,7 +71,7 @@ class OverlayService : Service() {
             setupScreenCapture()
             startScreenCaptureLoop()
             
-            Toast.makeText(this, "AnimeReader : L'Œil est ouvert, prêt à lire !", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "AnimeReader : L'Oeil est ouvert, pret a lire !", Toast.LENGTH_SHORT).show()
         }
         
         return START_NOT_STICKY
@@ -158,9 +158,9 @@ class OverlayService : Service() {
                     
                     if (cleanedText != lastReadText && cleanedText.length > 2) {
                         lastReadText = cleanedText
-                        Log.i("AnimeReader", "NOUVEAU TEXTE DÉTECTÉ : $cleanedText")
+                        Log.i("AnimeReader", "NOUVEAU TEXTE DETECTE : $cleanedText")
                         
-                        // LECTURE AUDIO INSTANTANÉE !
+                        // LECTURE AUDIO INSTANTANEE !
                         ttsManager.speak(cleanedText)
                     }
                 }
@@ -173,11 +173,11 @@ class OverlayService : Service() {
 
     private fun cleanOcrTextForAudio(rawText: String): String {
         var text = rawText
-        text = text.replace(Regex("-\\\s*\\\n\\\s*"), "")
-        text = text.replace(Regex("\\\n"), " ")
+        text = text.replace(Regex("-\\s*\\n\\s*"), "")
+        text = text.replace(Regex("\\n"), " ")
         text = text.replace(Regex("~+"), "...")
-        text = text.replace(Regex("[^\\\p{L}\\\p{N}\\\p{P}\\\s]"), "")
-        text = text.replace(Regex("\\\s{2,}"), " ")
+        text = text.replace(Regex("[^\\p{L}\\p{N}\\p{P}\\s]"), "")
+        text = text.replace(Regex("\\s{2,}"), " ")
         return text.trim()
     }
 
@@ -189,7 +189,7 @@ class OverlayService : Service() {
         mediaProjection?.stop()
         overlayManager?.removeAllViews()
         ttsManager.stop()
-        Toast.makeText(this, "AnimeReader est arrêté", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "AnimeReader est arrete", Toast.LENGTH_SHORT).show()
     }
 
     private fun createNotificationChannel() {
