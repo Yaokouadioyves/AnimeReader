@@ -221,7 +221,7 @@ class OverlayService : Service() {
         imageReader?.close()
         mediaProjection?.stop()
         overlayManager?.removeAllViews()
-        ttsManager.stop()
+        ttsManager.shutdown()
         Toast.makeText(this, "AnimeReader est arrêté", Toast.LENGTH_SHORT).show()
     }
 

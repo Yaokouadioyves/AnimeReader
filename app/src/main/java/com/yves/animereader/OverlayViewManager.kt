@@ -15,6 +15,7 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.TextView
+import kotlin.math.max
 
 class OverlayViewManager(private val context: Context) {
 
@@ -23,24 +24,29 @@ class OverlayViewManager(private val context: Context) {
     // UI Elements
     private var floatingBubble: FrameLayout? = null
     private var borderView: FrameLayout? = null
-    private var handleView: FrameLayout? = null
+    private var handleMoveView: FrameLayout? = null
+    private var handleResizeView: FrameLayout? = null
     
     var isRectangleVisible = false
         private set
 
     // Variables pour stocker la position exacte du rectangle
-    private var rectX = 200
-    private var rectY = 500
+    private var rectX = 100
+    private var rectY = 400
     private var rectWidth = 600
     private var rectHeight = 300
+
+    // Constantes de taille minimum pour le rectangle
+    private val MIN_WIDTH = 200
+    private val MIN_HEIGHT = 150
 
     private val handler = Handler(Looper.getMainLooper())
     private val fadeOutRunnable = Runnable {
         borderView?.animate()?.alpha(0.15f)?.setDuration(500)?.start()
-        handleView?.animate()?.alpha(0.15f)?.setDuration(500)?.start()
+        handleMoveView?.animate()?.alpha(0.15f)?.setDuration(500)?.start()
+        handleResizeView?.animate()?.alpha(0.15f)?.setDuration(500)?.start()
     }
 
-    // --- NOUVEAU : Méthode pour récupérer la zone de lecture ---
     fun getReadingArea(): Rect? {
         if (!isRectangleVisible) return null
         return Rect(rectX, rectY, rectX + rectWidth, rectY + rectHeight)
@@ -48,19 +54,19 @@ class OverlayViewManager(private val context: Context) {
 
     fun wakeUpOverlay() {
         borderView?.animate()?.alpha(1.0f)?.setDuration(200)?.start()
-        handleView?.animate()?.alpha(1.0f)?.setDuration(200)?.start()
+        handleMoveView?.animate()?.alpha(1.0f)?.setDuration(200)?.start()
+        handleResizeView?.animate()?.alpha(1.0f)?.setDuration(200)?.start()
         handler.removeCallbacks(fadeOutRunnable)
         handler.postDelayed(fadeOutRunnable, 2000)
     }
 
-    // ... [Le reste du code reste identique pour showFloatingBubble] ...
     @SuppressLint("ClickableViewAccessibility")
     fun showFloatingBubble() {
         if (floatingBubble != null) return
 
         floatingBubble = FrameLayout(context).apply {
             val icon = TextView(context).apply {
-                text = "👁️"
+                text = "▶️"
                 textSize = 24f
                 gravity = Gravity.CENTER
                 val shape = GradientDrawable().apply {
@@ -123,9 +129,11 @@ class OverlayViewManager(private val context: Context) {
     private fun toggleRectangle() {
         if (isRectangleVisible) {
             borderView?.let { windowManager.removeView(it) }
-            handleView?.let { windowManager.removeView(it) }
+            handleMoveView?.let { windowManager.removeView(it) }
+            handleResizeView?.let { windowManager.removeView(it) }
             borderView = null
-            handleView = null
+            handleMoveView = null
+            handleResizeView = null
             isRectangleVisible = false
             handler.removeCallbacks(fadeOutRunnable)
         } else {
@@ -137,6 +145,7 @@ class OverlayViewManager(private val context: Context) {
 
     @SuppressLint("ClickableViewAccessibility")
     private fun showReadingRectangle() {
+        // 1. Le Rectangle (Bordure)
         borderView = FrameLayout(context).apply {
             val shape = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
@@ -160,9 +169,10 @@ class OverlayViewManager(private val context: Context) {
 
         windowManager.addView(borderView, borderParams)
 
-        handleView = FrameLayout(context).apply {
+        // 2. La Poignée de Déplacement (Haut-Gauche)
+        handleMoveView = FrameLayout(context).apply {
             val icon = TextView(context).apply {
-                text = "✥"
+                text = "✢" // Croix pour bouger
                 textSize = 18f
                 setTextColor(Color.WHITE)
                 gravity = Gravity.CENTER
@@ -176,7 +186,7 @@ class OverlayViewManager(private val context: Context) {
             addView(icon)
         }
 
-        val handleParams = WindowManager.LayoutParams(
+        val handleMoveParams = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
             getOverlayType(),
@@ -193,7 +203,7 @@ class OverlayViewManager(private val context: Context) {
         var initialTouchX = 0f
         var initialTouchY = 0f
 
-        handleView?.setOnTouchListener { _, event ->
+        handleMoveView?.setOnTouchListener { _, event ->
             wakeUpOverlay()
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
@@ -214,25 +224,99 @@ class OverlayViewManager(private val context: Context) {
                     borderParams.y = rectY
                     windowManager.updateViewLayout(borderView, borderParams)
                     
-                    handleParams.x = borderParams.x - 20
-                    handleParams.y = borderParams.y - 20
-                    windowManager.updateViewLayout(handleView, handleParams)
+                    handleMoveParams.x = borderParams.x - 20
+                    handleMoveParams.y = borderParams.y - 20
+                    windowManager.updateViewLayout(handleMoveView, handleMoveParams)
+                    
+                    handleResizeView?.let {
+                        val resizeParams = it.layoutParams as WindowManager.LayoutParams
+                        resizeParams.x = borderParams.x + rectWidth - 30
+                        resizeParams.y = borderParams.y + rectHeight - 30
+                        windowManager.updateViewLayout(it, resizeParams)
+                    }
                     true
                 }
                 else -> false
             }
         }
-        windowManager.addView(handleView, handleParams)
+        windowManager.addView(handleMoveView, handleMoveParams)
+
+        // 3. La Poignée de Redimensionnement (Bas-Droite)
+        handleResizeView = FrameLayout(context).apply {
+            val icon = TextView(context).apply {
+                text = "↘" // Flèche de redimensionnement
+                textSize = 18f
+                setTextColor(Color.WHITE)
+                gravity = Gravity.CENTER
+                val shape = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(Color.parseColor("#99000000"))
+                }
+                background = shape
+                setPadding(15, 15, 15, 15)
+            }
+            addView(icon)
+        }
+
+        val handleResizeParams = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            getOverlayType(),
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            x = borderParams.x + rectWidth - 30
+            y = borderParams.y + rectHeight - 30
+        }
+
+        var initialWidth = 0
+        var initialHeight = 0
+        var resizeInitialTouchX = 0f
+        var resizeInitialTouchY = 0f
+
+        handleResizeView?.setOnTouchListener { _, event ->
+            wakeUpOverlay()
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    initialWidth = rectWidth
+                    initialHeight = rectHeight
+                    resizeInitialTouchX = event.rawX
+                    resizeInitialTouchY = event.rawY
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val dx = (event.rawX - resizeInitialTouchX).toInt()
+                    val dy = (event.rawY - resizeInitialTouchY).toInt()
+                    
+                    rectWidth = max(MIN_WIDTH, initialWidth + dx)
+                    rectHeight = max(MIN_HEIGHT, initialHeight + dy)
+                    
+                    borderParams.width = rectWidth
+                    borderParams.height = rectHeight
+                    windowManager.updateViewLayout(borderView, borderParams)
+                    
+                    handleResizeParams.x = borderParams.x + rectWidth - 30
+                    handleResizeParams.y = borderParams.y + rectHeight - 30
+                    windowManager.updateViewLayout(handleResizeView, handleResizeParams)
+                    true
+                }
+                else -> false
+            }
+        }
+        windowManager.addView(handleResizeView, handleResizeParams)
     }
 
     fun removeAllViews() {
         handler.removeCallbacks(fadeOutRunnable)
         floatingBubble?.let { try { windowManager.removeView(it) } catch(e: Exception) {} }
         borderView?.let { try { windowManager.removeView(it) } catch(e: Exception) {} }
-        handleView?.let { try { windowManager.removeView(it) } catch(e: Exception) {} }
+        handleMoveView?.let { try { windowManager.removeView(it) } catch(e: Exception) {} }
+        handleResizeView?.let { try { windowManager.removeView(it) } catch(e: Exception) {} }
         floatingBubble = null
         borderView = null
-        handleView = null
+        handleMoveView = null
+        handleResizeView = null
     }
 
     private fun getOverlayType(): Int {

@@ -10,11 +10,14 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,12 +56,25 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Bienvenue dans AnimeReader")
-                    Spacer(modifier = Modifier.height(32.dp))
-                    Button(onClick = { checkPermissionsAndStart() }) {
-                        Text("Démarrer AnimeReader")
+            MaterialTheme {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Bienvenue dans AnimeReader", style = MaterialTheme.typography.headlineSmall)
+                        Spacer(modifier = Modifier.height(32.dp))
+                        Button(
+                            onClick = { checkPermissionsAndStart() },
+                            modifier = Modifier.fillMaxWidth(0.8f)
+                        ) {
+                            Text("Démarrer AnimeReader")
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(
+                            onClick = { stopAnimeReaderService() },
+                            modifier = Modifier.fillMaxWidth(0.8f),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                        ) {
+                            Text("Arrêter l'application")
+                        }
                     }
                 }
             }
@@ -83,6 +99,7 @@ class MainActivity : ComponentActivity() {
         if (!Settings.canDrawOverlays(this)) {
             val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
             startActivity(intent)
+            Toast.makeText(this, "Veuillez autoriser l'affichage par-dessus les autres applications.", Toast.LENGTH_LONG).show()
         } else {
             startScreenCapture()
         }
@@ -91,5 +108,10 @@ class MainActivity : ComponentActivity() {
     private fun startScreenCapture() {
         val projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         screenCaptureLauncher.launch(projectionManager.createScreenCaptureIntent())
+    }
+
+    private fun stopAnimeReaderService() {
+        stopService(Intent(this, OverlayService::class.java))
+        Toast.makeText(this, "Demande d'arrêt envoyée.", Toast.LENGTH_SHORT).show()
     }
 }
