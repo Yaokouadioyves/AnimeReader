@@ -35,7 +35,7 @@ class OverlayService : Service() {
     private var mediaProjection: MediaProjection? = null
     private var virtualDisplay: VirtualDisplay? = null
     private var imageReader: ImageReader? = null
-    private var mediaProjectionCallback: MediaProjectionManager.Callback? = null
+    private var mediaProjectionCallback: MediaProjection.Callback? = null
     
     private val textRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
     
@@ -79,13 +79,13 @@ class OverlayService : Service() {
                 mediaProjection = projectionManager.getMediaProjection(resultCode, data)
                 
                 // NOUVEAUTÉ ANDROID 14 : Enregistrement obligatoire du callback
-                mediaProjectionCallback = object : MediaProjectionManager.Callback() {
+                mediaProjectionCallback = object : MediaProjection.Callback() {
                     override fun onStop() {
                         Log.i("OverlayService", "MediaProjection callback: Arrêt détecté")
                         stopSelf()
                     }
                 }
-                projectionManager.registerCallback(mediaProjectionCallback, Handler(Looper.getMainLooper()))
+                mediaProjection?.registerCallback(mediaProjectionCallback, Handler(Looper.getMainLooper()))
                 
                 // Maintenant qu'on a enregistré le callback, on peut démarrer le foreground service
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -220,8 +220,7 @@ class OverlayService : Service() {
         
         // ANDROID 14 : Désenregistrer le callback si enregistré
         if (mediaProjectionCallback != null) {
-            val projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-            projectionManager.unregisterCallback(mediaProjectionCallback)
+            mediaProjection?.unregisterCallback(mediaProjectionCallback as MediaProjection.Callback)
         }
         
         virtualDisplay?.release()
