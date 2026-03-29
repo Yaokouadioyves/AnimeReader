@@ -85,7 +85,9 @@ class OverlayService : Service() {
                         stopSelf()
                     }
                 }
-                mediaProjection?.registerCallback(mediaProjectionCallback, Handler(Looper.getMainLooper()))
+                mediaProjectionCallback?.let {
+                    mediaProjection?.registerCallback(it, Handler(Looper.getMainLooper()))
+                }
                 
                 // Maintenant qu'on a enregistré le callback, on peut démarrer le foreground service
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -219,8 +221,8 @@ class OverlayService : Service() {
         captureHandler.removeCallbacksAndMessages(null)
         
         // ANDROID 14 : Désenregistrer le callback si enregistré
-        if (mediaProjectionCallback != null) {
-            mediaProjection?.unregisterCallback(mediaProjectionCallback as MediaProjection.Callback)
+        mediaProjectionCallback?.let {
+            mediaProjection?.unregisterCallback(it)
         }
         
         virtualDisplay?.release()
