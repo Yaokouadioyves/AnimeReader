@@ -68,17 +68,17 @@ class OverlayService : Service() {
         
         if (resultCode != 0 && data != null && mediaProjection == null) {
             
-            // ANDROID 14 FIX: Nous devons absolument suivre cette séquence :
-            // 1. Obtenir le MediaProjection token
-            // 2. Enregistrer un callback obligatoire (nouveauté Android 14)
-            // 3. Ensuite seulement démarrer le service en premier plan
-            // 4. Enfin créer le VirtualDisplay
-            
             try {
+                // IMPORTANT ANDROID 14 : startForeground DOIT etre appele AVANT getMediaProjection
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    startForeground(1, createNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
+                } else {
+                    startForeground(1, createNotification())
+                }
+
                 val projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
                 mediaProjection = projectionManager.getMediaProjection(resultCode, data)
                 
-                // NOUVEAUTÉ ANDROID 14 : Enregistrement obligatoire du callback
                 mediaProjectionCallback = object : MediaProjection.Callback() {
                     override fun onStop() {
                         Log.i("OverlayService", "MediaProjection callback: Arrêt détecté")
@@ -87,13 +87,6 @@ class OverlayService : Service() {
                 }
                 mediaProjectionCallback?.let {
                     mediaProjection?.registerCallback(it, Handler(Looper.getMainLooper()))
-                }
-                
-                // Maintenant qu'on a enregistré le callback, on peut démarrer le foreground service
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    startForeground(1, createNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
-                } else {
-                    startForeground(1, createNotification())
                 }
                 
                 setupScreenCapture()
@@ -220,7 +213,6 @@ class OverlayService : Service() {
         super.onDestroy()
         captureHandler.removeCallbacksAndMessages(null)
         
-        // ANDROID 14 : Désenregistrer le callback si enregistré
         mediaProjectionCallback?.let {
             mediaProjection?.unregisterCallback(it)
         }
