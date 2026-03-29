@@ -21,11 +21,8 @@ class TtsManager(private val context: Context) {
     private var mediaPlayer: MediaPlayer? = null
     private val coroutineScope = CoroutineScope(Dispatchers.IO)
 
-    // TODO: Remplacez cette valeur par le résultat de la commande "gcloud auth print-access-token"
-    // Note: C'est pour tester rapidement. Dans la version finale, nous intégrerons
-    // votre fichier JSON directement dans l'application pour générer ce jeton automatiquement.
-    private val ACCESS_TOKEN = "ya29.c.c0AZ4bNpbKV3KOe_Spy30_lL6c4uXgAVIVmrpDl3SmpzdPQpPiieVHSlx8sZUfMWtQqmfGAsCxCeU9_BDx2JUgA0I0R69Dh-QN1poqDPJldaYTu5ksUTi4fXVIZQIgSqfEVd_WEZtFl4lwaqioKeZ7OJmCf9sOXB6h6JBluP6SzlJVVcorcUhU--yJYpZYyMPYZXnvkgx1tP2u-CMvoCpPu1WHF94tzmCGs11NTgQl5ZVPCL7cgVDlLBHw2RnUT457ElONPxtFBMQBJPKEG94vJLSv417kcefNM6A7luL3Eups-AXRWMxkKTkzBiq5eS4G_tV5FABE1y_ghE5FdLwEm0inQitSAk651qZKufx1SpCBpOUs6xMa8y58RyAcjeCdf9saXA8T400Kzla7YmvY1_Rz2_td39-lx6r4dlipRxtumopBRx0bck6w9r6RywuJJxzRm7Xdc30tsZvIOerxihOt1WFWSh_q3IjbQh6s39smIs_9ia3kkrptIk8dklhwqcOBnuQyr2FJM6qZdY5yprJwrad_Rc6ty6hxa_gz5o4VxX1IBqIWktVl1h-5dj7e1oF5wjJkOut6Qysjsig_cfmFwfmkIwWOtdRUxX02oFJemb-Vc63a8o4Wtfd6z1QQWb_l1lafb5peRMeJfkur7MfanfrJ1oIzl_c9-jr0qef3UQBMX7Vksby7wh7iM4y94kWieO0uM4JZSnXu8_6Xk9I2q8vQ84JqIOm6f6bR4WiiX6pWqF-cj1Qq0eWBB4hQBUMudcR6ccrb1ZV_ml0Y1yvwfMWvyXnt8bluQRp_h-p57BUx5gvc1jbynXcpOuR-925Zdfah1RmrqsO-7d6vmU1Zh5pU0Mwbzr4Jb5OZeXw5cm2O0stB8yR77md0ilYFcgdtUaX8X246umx_kx8hyYmRhi1doqex5dkFbkpUQFekBdq-nFXhj4u6V6M4I-as_zj2SVsw3t0dh7vUqhtc3MBi1bRowb0WB4vl3QJQq54fdt0ujvml_3M"
-    private val PROJECT_ID = "gen-lang-client-0177317636"
+    // Utilisation d'une clé API Google Cloud (permanente) au lieu d'un token OAuth
+    private val API_KEY = "AIzaSyDaCuKBJnoOuPvok7X6-X-r-1uK4V95EVI"
 
     fun speak(text: String) {
         // Arrêter l'audio précédent si on lance une nouvelle bulle
@@ -52,9 +49,7 @@ class TtsManager(private val context: Context) {
                 val requestBody = jsonBody.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
 
                 val request = Request.Builder()
-                    .url("https://texttospeech.googleapis.com/v1/text:synthesize")
-                    .addHeader("Authorization", "Bearer $ACCESS_TOKEN")
-                    .addHeader("x-goog-user-project", PROJECT_ID)
+                    .url("https://texttospeech.googleapis.com/v1/text:synthesize?key=$API_KEY")
                     .post(requestBody)
                     .build()
 
